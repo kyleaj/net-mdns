@@ -5,7 +5,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Makaretu.Dns
+namespace AOApps.Dns
 {
     /// <summary>
     ///   Maintains a sequence of recent messages.

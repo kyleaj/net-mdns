@@ -1,11 +1,12 @@
-﻿using System;
+﻿using Makaretu.Dns;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-namespace Makaretu.Dns
+namespace AOApps.Dns
 {
     /// <summary>
     ///   Defines a specific service that can be discovered.

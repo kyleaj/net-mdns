@@ -9,7 +9,7 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
-namespace Makaretu.Dns
+namespace AOApps.Dns
 {
     /// <summary>
     ///   Performs the magic to send and receive datagrams over multicast
@@ -37,7 +37,7 @@ namespace Makaretu.Dns
 
         public event EventHandler<UdpReceiveResult> MessageReceived;
 
-        public MulticastClient(bool useIPv4, bool useIpv6, IEnumerable<NetworkInterface> nics)
+        public MulticastClient(bool useIPv4, bool useIpv6, IEnumerable<IPAddress> ipaddresses)
         {
             // Setup the receivers.
             receivers = new List<UdpClient>();
@@ -73,11 +73,10 @@ namespace Makaretu.Dns
             }
 
             // Get the IP addresses that we should send to.
-            var addreses = nics
-                .SelectMany(GetNetworkInterfaceLocalAddresses)
+            var good_addreses = ipaddresses
                 .Where(a => (useIPv4 && a.AddressFamily == AddressFamily.InterNetwork)
                     || (useIpv6 && a.AddressFamily == AddressFamily.InterNetworkV6));
-            foreach (var address in addreses)
+            foreach (var address in good_addreses)
             {
                 if (senders.Keys.Contains(address))
                 {
@@ -180,16 +179,6 @@ namespace Makaretu.Dns
                     return;
                 }
             });
-        }
-
-        IEnumerable<IPAddress> GetNetworkInterfaceLocalAddresses(NetworkInterface nic)
-        {
-            return nic
-                .GetIPProperties()
-                .UnicastAddresses
-                .Select(x => x.Address)
-                .Where(x => x.AddressFamily != AddressFamily.InterNetworkV6 || x.IsIPv6LinkLocal)
-                ;
         }
 
         #region IDisposable Support

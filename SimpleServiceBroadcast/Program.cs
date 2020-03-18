@@ -1,24 +1,21 @@
-﻿using AOApps.Dns;
-using Common.Logging;
-using Common.Logging.Simple;
+﻿using Makaretu.Dns;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 
-namespace Spike
+namespace SimpleServiceBroadcast
 {
-    class Program
+    public class Program
     {
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
             // Advertise via mDNS
             Console.WriteLine("Getting IP addresses");
             string sHostName = Dns.GetHostName();
             IPAddress[] IPs = Dns.GetHostAddresses(sHostName);
             Console.WriteLine($"Got: {String.Join(", ", (IEnumerable<IPAddress>)IPs)}");
-            var service = new ServiceProfile($"Cards-Uno-{Guid.NewGuid()}", "_customservice._tcp", 54321, IPs);
-            service.AddProperty("service_version", "1.0");
+            var service = new ServiceProfile($"Cards-Uno-{Guid.NewGuid()}", "_unocards._tcp", 54321, IPs);
+            service.AddProperty("cards_discuss_version", "1.0");
             Console.WriteLine("Made service profile");
 
             var SD = new ServiceDiscovery();

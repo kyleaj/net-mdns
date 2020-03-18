@@ -2,7 +2,7 @@
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 
-namespace Makaretu.Dns
+namespace AOApps.Dns
 {
     static class LinuxHelper
     {

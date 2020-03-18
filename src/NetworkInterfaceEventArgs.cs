@@ -1,14 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
 
-namespace Makaretu.Dns
+namespace AOApps.Dns
 {
     /// <summary>
     ///   The event data for <see cref="MulticastService.NetworkInterfaceDiscovered"/>.
     /// </summary>
-    public class NetworkInterfaceEventArgs : EventArgs
+    public class IPEventArgs : EventArgs
     {
         /// <summary>
         ///   The sequece of detected network interfaces.
@@ -16,7 +17,7 @@ namespace Makaretu.Dns
         /// <value>
         ///   A sequence of network interfaces.
         /// </value>
-        public IEnumerable<NetworkInterface> NetworkInterfaces { get; set; }
+        public IEnumerable<IPAddress> NetworkInterfaces { get; set; }
     }
 }
 

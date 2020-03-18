@@ -10,8 +10,9 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Common.Logging;
+using Makaretu.Dns;
 
-namespace Makaretu.Dns
+namespace AOApps.Dns
 {
     /// <summary>
     ///   Muticast Domain Name Service.
@@ -35,8 +36,9 @@ namespace Makaretu.Dns
         static readonly ILog log = LogManager.GetLogger(typeof(MulticastService));
         static readonly IPNetwork[] LinkLocalNetworks = new[] { IPNetwork.Parse("169.254.0.0/16"), IPNetwork.Parse("fe80::/10") };
 
-        List<NetworkInterface> knownNics = new List<NetworkInterface>();
         int maxPacketSize;
+
+        private List<IPAddress> knownIPs;
 
         /// <summary>
         ///   Recently sent messages.
@@ -62,11 +64,6 @@ namespace Makaretu.Dns
         ///   Use to send unicast IPv6 answers.
         /// </summary>
         UdpClient unicastClientIp6 = new UdpClient(AddressFamily.InterNetworkV6);
-
-        /// <summary>
-        ///   Function used for listening filtered network interfaces.
-        /// </summary>
-        Func<IEnumerable<NetworkInterface>, IEnumerable<NetworkInterface>> networkInterfacesFilter;
 
         /// <summary>
         ///   Set the default TTLs.
@@ -119,7 +116,7 @@ namespace Makaretu.Dns
         /// <value>
         ///   Contains the network interface(s).
         /// </value>
-        public event EventHandler<NetworkInterfaceEventArgs> NetworkInterfaceDiscovered;
+        public event EventHandler<IPEventArgs> NetworkInterfaceDiscovered;
 
         /// <summary>
         ///   Create a new instance of the <see cref="MulticastService"/> class.
@@ -127,10 +124,9 @@ namespace Makaretu.Dns
         /// <param name="filter">
         ///   Multicast listener will be bound to result of filtering function.
         /// </param>
-        public MulticastService(Func<IEnumerable<NetworkInterface>, IEnumerable<NetworkInterface>> filter = null)
+        public MulticastService()
         {
-            networkInterfacesFilter = filter;
-
+            knownIPs = new List<IPAddress>();
             UseIpv4 = Socket.OSSupportsIPv4;
             UseIpv6 = Socket.OSSupportsIPv6;
             IgnoreDuplicateMessages = true;
@@ -179,37 +175,6 @@ namespace Makaretu.Dns
         public TimeSpan NetworkInterfaceDiscoveryInterval { get; set; } = TimeSpan.FromMinutes(2);
 
         /// <summary>
-        ///   Get the network interfaces that are useable.
-        /// </summary>
-        /// <returns>
-        ///   A sequence of <see cref="NetworkInterface"/>.
-        /// </returns>
-        /// <remarks>
-        ///   The following filters are applied
-        ///   <list type="bullet">
-        ///   <item><description>interface is enabled</description></item>
-        ///   <item><description>interface is not a loopback</description></item>
-        ///   </list>
-        ///   <para>
-        ///   If no network interface is operational, then the loopback interface(s)
-        ///   are included (127.0.0.1 and/or ::1).
-        ///   </para>
-        /// </remarks>
-        public static IEnumerable<NetworkInterface> GetNetworkInterfaces()
-        {
-            var nics = NetworkInterface.GetAllNetworkInterfaces()
-                .Where(nic => nic.OperationalStatus == OperationalStatus.Up)
-                .Where(nic => nic.NetworkInterfaceType != NetworkInterfaceType.Loopback)
-                .ToArray();
-            if (nics.Length > 0)
-                return nics;
-
-            // Special case: no operational NIC, then use loopbacks.
-            return NetworkInterface.GetAllNetworkInterfaces()
-                .Where(nic => nic.OperationalStatus == OperationalStatus.Up);
-        }
-
-        /// <summary>
         ///   Get the IP addresses of the local machine.
         /// </summary>
         /// <returns>
@@ -221,9 +186,8 @@ namespace Makaretu.Dns
         /// </remarks>
         public static IEnumerable<IPAddress> GetIPAddresses()
         {
-            return GetNetworkInterfaces()
-                .SelectMany(nic => nic.GetIPProperties().UnicastAddresses)
-                .Select(u => u.Address);
+            string sHostName = System.Net.Dns.GetHostName();
+            return System.Net.Dns.GetHostAddressesAsync(sHostName).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -249,9 +213,7 @@ namespace Makaretu.Dns
         public void Start()
         {
             maxPacketSize = maxDatagramSize - packetOverhead;
-
-            knownNics.Clear();
-
+            knownIPs?.Clear();
             FindNetworkInterfaces();
         }
 
@@ -281,45 +243,45 @@ namespace Makaretu.Dns
 
             try
             {
-                var currentNics = GetNetworkInterfaces().ToList();
+                var currentNics = GetLinkLocalAddresses().ToList();
 
-                var newNics = new List<NetworkInterface>();
-                var oldNics = new List<NetworkInterface>();
+                var newNics = new List<IPAddress>();
+                var oldNics = new List<IPAddress>();
 
-                foreach (var nic in knownNics.Where(k => !currentNics.Any(n => k.Id == n.Id)))
+                foreach (var nic in knownIPs?.Where(k => !currentNics.Any(n => k.Equals(n))))
                 {
                     oldNics.Add(nic);
 
                     if (log.IsDebugEnabled)
                     {
-                        log.Debug($"Removed nic '{nic.Name}'.");
+                        log.Debug($"Removed ip '{nic}'.");
                     }
                 }
 
-                foreach (var nic in currentNics.Where(nic => !knownNics.Any(k => k.Id == nic.Id)))
+                foreach (var nic in currentNics.Where(nic => !knownIPs.Any(k => k.Equals(nic))))
                 {
                     newNics.Add(nic);
 
                     if (log.IsDebugEnabled)
                     {
-                        log.Debug($"Found nic '{nic.Name}'.");
+                        log.Debug($"Found ip '{nic}'.");
                     }
                 }
 
-                knownNics = currentNics;
+                knownIPs = currentNics;
 
-                // Only create client if something has change.
+                // Only create client if something has changed.
                 if (newNics.Any() || oldNics.Any())
                 {
                     client?.Dispose();
-                    client = new MulticastClient(UseIpv4, UseIpv6, networkInterfacesFilter?.Invoke(knownNics) ?? knownNics);
+                    client = new MulticastClient(UseIpv4, UseIpv6, knownIPs);
                     client.MessageReceived += OnDnsMessage;
                 }
 
                 // Tell others.
                 if (newNics.Any())
                 {
-                    NetworkInterfaceDiscovered?.Invoke(this, new NetworkInterfaceEventArgs
+                    NetworkInterfaceDiscovered?.Invoke(this, new IPEventArgs
                     {
                         NetworkInterfaces = newNics
                     });

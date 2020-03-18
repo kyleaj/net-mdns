@@ -1,7 +1,8 @@
-﻿using System;
+﻿using Makaretu.Dns;
+using System;
 using System.Net;
 
-namespace Makaretu.Dns
+namespace AOApps.Dns
 {
     /// <summary>
     ///   The event data for <see cref="MulticastService.QueryReceived"/> or
